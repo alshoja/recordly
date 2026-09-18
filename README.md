@@ -123,7 +123,7 @@ Open:
 - Frontend: `https://recordly.techdev`
 - Backend API: `https://api.recordly.techdev`
 - Ollama: `http://localhost:11434`
-- pgAdmin: `http://localhost:8080`
+- pgAdmin: `https://pgadmin.recordly.techdev` (or `http://localhost:8080` directly)
 
 ## AI Assistant
 

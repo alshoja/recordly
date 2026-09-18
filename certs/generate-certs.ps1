@@ -12,6 +12,7 @@ $CertDir = Join-Path $RootDir "certs"
 
 $AppDomain = if ($env:APP_DOMAIN) { $env:APP_DOMAIN } else { "recordly.techdev" }
 $ApiDomain = if ($env:API_DOMAIN) { $env:API_DOMAIN } else { "api.recordly.techdev" }
+$PgadminDomain = if ($env:PGADMIN_DOMAIN) { $env:PGADMIN_DOMAIN } else { "pgadmin.recordly.techdev" }
 
 function Install-Mkcert {
     if (Get-Command mkcert -ErrorAction SilentlyContinue) {
@@ -46,10 +47,10 @@ mkcert -install
 
 New-Item -ItemType Directory -Force -Path $CertDir | Out-Null
 
-Write-Host "Generating certificate for $AppDomain and $ApiDomain..."
+Write-Host "Generating certificate for $AppDomain, $ApiDomain and $PgadminDomain..."
 mkcert `
     -cert-file (Join-Path $CertDir "local-cert.pem") `
     -key-file (Join-Path $CertDir "local-key.pem") `
-    $AppDomain $ApiDomain
+    $AppDomain $ApiDomain $PgadminDomain
 
 Write-Host "Certificate written to $(Join-Path $CertDir 'local-cert.pem')"

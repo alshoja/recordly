@@ -26,30 +26,31 @@ docker compose exec ocr-worker sh
 
 ## Local Domain And TLS
 
-The app runs at `https://recordly.techdev` (frontend) and `https://api.recordly.techdev`
-(backend) instead of `localhost`, so it behaves like a real deployed site and
+The app runs at `https://recordly.techdev` (frontend), `https://api.recordly.techdev`
+(backend) and `https://pgadmin.recordly.techdev` (pgAdmin) instead of `localhost`, so it behaves like a real deployed site and
 can be shared with anyone by domain name.
 
 `./setup.sh` sets this up automatically on macOS and Linux:
 
-1. Reads `APP_DOMAIN` / `API_DOMAIN` from `.env` (defaults: `recordly.techdev` /
-   `api.recordly.techdev`).
-2. Adds `127.0.0.1 <domain>` entries to `/etc/hosts` for both domains (asks
+1. Reads `APP_DOMAIN` / `API_DOMAIN` / `PGADMIN_DOMAIN` from `.env` (defaults:
+   `recordly.techdev` / `api.recordly.techdev` / `pgadmin.recordly.techdev`).
+2. Adds `127.0.0.1 <domain>` entries to `/etc/hosts` for all three domains (asks
    for `sudo`; skipped if already present).
 3. Installs [mkcert](https://github.com/FiloSottile/mkcert) if missing (via
    Homebrew on macOS, or a downloaded binary + `libnss3-tools` on Linux),
    registers a local trusted CA (`mkcert -install`), and writes a certificate
-   for both domains to `certs/local-cert.pem` / `certs/local-key.pem`.
+   for all three domains to `certs/local-cert.pem` / `certs/local-key.pem`.
 4. Starts Docker Compose, including an `nginx` reverse proxy
    (`nginx/local.conf`) that terminates TLS with that certificate and routes
-   `recordly.techdev` to `frontend` and `api.recordly.techdev` to `backend`. Plain HTTP
+   `recordly.techdev` to `frontend`, `api.recordly.techdev` to `backend` and
+   `pgadmin.recordly.techdev` to `pgadmin`. Plain HTTP
    requests on port 80 redirect to HTTPS.
 
 Certificates are machine-specific and gitignored (`certs/*.pem`); every
 teammate generates their own by running `./setup.sh` (or
 `certs/generate-certs.sh` directly to regenerate without a full setup).
 
-To use a different domain, set `APP_DOMAIN` / `API_DOMAIN` in `.env` before
+To use a different domain, set `APP_DOMAIN` / `API_DOMAIN` / `PGADMIN_DOMAIN` in `.env` before
 running `./setup.sh`, and update `VITE_API_URL`, `VITE_ASSET_URL`, and
 `CORS_ORIGINS` to match.
 
