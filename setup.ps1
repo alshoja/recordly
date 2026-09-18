@@ -65,15 +65,18 @@ if (-not (Test-Path $envPath)) {
 
 $AppDomain = Get-EnvValue -Path $envPath -Name "APP_DOMAIN" -Default "recordly.techdev"
 $ApiDomain = Get-EnvValue -Path $envPath -Name "API_DOMAIN" -Default "api.recordly.techdev"
+$PgadminDomain = Get-EnvValue -Path $envPath -Name "PGADMIN_DOMAIN" -Default "pgadmin.recordly.techdev"
 
 # Step 0a: point the local domains at this machine
 Add-HostsEntry -Domain $AppDomain
 Add-HostsEntry -Domain $ApiDomain
+Add-HostsEntry -Domain $PgadminDomain
 
 # Step 0b: generate a locally-trusted TLS certificate for those domains
-Write-Host "Setting up local TLS certificate for $AppDomain and $ApiDomain..."
+Write-Host "Setting up local TLS certificate for $AppDomain, $ApiDomain and $PgadminDomain..."
 $env:APP_DOMAIN = $AppDomain
 $env:API_DOMAIN = $ApiDomain
+$env:PGADMIN_DOMAIN = $PgadminDomain
 & (Join-Path $RootDir "certs\generate-certs.ps1")
 if ($LASTEXITCODE -ne 0) { throw "Certificate generation failed" }
 
@@ -107,5 +110,5 @@ Write-Host "Setup complete!"
 Write-Host "Frontend: https://$AppDomain"
 Write-Host "Backend: https://$ApiDomain"
 Write-Host "OCR Worker: http://localhost:6000"
-Write-Host "pgAdmin: http://localhost:8080 (Email: admin@example.com, Password: admin123)"
+Write-Host "pgAdmin: https://$PgadminDomain (Email: admin@example.com, Password: admin123)"
 Write-Host "Seed users: admin1@example.com through admin10@example.com (Password: Admin@123456)"

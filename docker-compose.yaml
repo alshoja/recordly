@@ -20,6 +20,7 @@ services:
     depends_on:
       - frontend
       - backend
+      - pgadmin
     logging: *default-logging
     networks:
       - common-net

@@ -60,8 +60,10 @@ fi
 # Load APP_DOMAIN / API_DOMAIN from .env (fall back to defaults)
 APP_DOMAIN="$(grep -E '^APP_DOMAIN=' "$ROOT_DIR/.env" | cut -d '=' -f2-)"
 API_DOMAIN="$(grep -E '^API_DOMAIN=' "$ROOT_DIR/.env" | cut -d '=' -f2-)"
+PGADMIN_DOMAIN="$(grep -E '^PGADMIN_DOMAIN=' "$ROOT_DIR/.env" | cut -d '=' -f2-)"
 APP_DOMAIN="${APP_DOMAIN:-recordly.techdev}"
 API_DOMAIN="${API_DOMAIN:-api.recordly.techdev}"
+PGADMIN_DOMAIN="${PGADMIN_DOMAIN:-pgadmin.recordly.techdev}"
 
 add_hosts_entry() {
   local domain="$1"
@@ -101,12 +103,13 @@ add_hosts_entry() {
 if [ "$OS" = "Darwin" ] || [ "$OS" = "Linux" ]; then
   add_hosts_entry "$APP_DOMAIN"
   add_hosts_entry "$API_DOMAIN"
+  add_hosts_entry "$PGADMIN_DOMAIN"
 
-  echo "🔹 Setting up local TLS certificate for $APP_DOMAIN and $API_DOMAIN..."
-  APP_DOMAIN="$APP_DOMAIN" API_DOMAIN="$API_DOMAIN" "$ROOT_DIR/certs/generate-certs.sh"
+  echo "🔹 Setting up local TLS certificate for $APP_DOMAIN, $API_DOMAIN and $PGADMIN_DOMAIN..."
+  APP_DOMAIN="$APP_DOMAIN" API_DOMAIN="$API_DOMAIN" PGADMIN_DOMAIN="$PGADMIN_DOMAIN" "$ROOT_DIR/certs/generate-certs.sh"
 else
   echo "⚠ Automatic /etc/hosts and mkcert setup is only supported on macOS/Linux."
-  echo "  Add '127.0.0.1 $APP_DOMAIN' and '127.0.0.1 $API_DOMAIN' to your hosts file"
+  echo "  Add '127.0.0.1 $APP_DOMAIN', '127.0.0.1 $API_DOMAIN' and '127.0.0.1 $PGADMIN_DOMAIN' to your hosts file"
   echo "  and run certs/generate-certs.sh manually (see docs/DEVELOPMENT.md)."
 fi
 
@@ -155,5 +158,5 @@ echo "✅ Setup complete!"
 echo "Frontend: https://$APP_DOMAIN"
 echo "Backend: https://$API_DOMAIN"
 echo "OCR Worker: http://localhost:6000"
-echo "pgAdmin: http://localhost:8080 (Email: admin@example.com, Password: admin123)"
+echo "pgAdmin: https://$PGADMIN_DOMAIN (Email: admin@example.com, Password: admin123)"
 echo "Seed users: admin1@example.com through admin10@example.com (Password: Admin@123456)"

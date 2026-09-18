@@ -10,6 +10,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CERT_DIR="$ROOT_DIR/certs"
 APP_DOMAIN="${APP_DOMAIN:-recordly.techdev}"
 API_DOMAIN="${API_DOMAIN:-api.recordly.techdev}"
+PGADMIN_DOMAIN="${PGADMIN_DOMAIN:-pgadmin.recordly.techdev}"
 
 install_mkcert() {
   if command -v mkcert >/dev/null 2>&1; then
@@ -46,10 +47,10 @@ echo "🔹 Installing local mkcert CA into your system/browser trust store..."
 mkcert -install
 
 mkdir -p "$CERT_DIR"
-echo "🔹 Generating certificate for $APP_DOMAIN and $API_DOMAIN..."
+echo "🔹 Generating certificate for $APP_DOMAIN, $API_DOMAIN and $PGADMIN_DOMAIN..."
 mkcert \
   -cert-file "$CERT_DIR/local-cert.pem" \
   -key-file "$CERT_DIR/local-key.pem" \
-  "$APP_DOMAIN" "$API_DOMAIN"
+  "$APP_DOMAIN" "$API_DOMAIN" "$PGADMIN_DOMAIN"
 
 echo "✔ Certificate written to $CERT_DIR/local-cert.pem"
