@@ -157,13 +157,20 @@ const documentDetailLine = (document: NonNullable<RecordDetail['documents']>[num
     return parts.join(' · ');
 };
 
-const formatStatus = (status?: string) => {
-    if (!status) return 'Not indexed';
-    return status
-        .toLowerCase()
-        .split('_')
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
+const extractionStatusLabels: Record<string, string> = {
+    PENDING: 'Waiting',
+    PROCESSING: 'Reading',
+    READY: 'Read',
+    UNSUPPORTED: 'Not supported',
+    FAILED: "Couldn't read"
+};
+
+const searchIndexStatusLabels: Record<string, string> = {
+    NOT_INDEXED: 'Not AI searchable yet',
+    INDEXING: 'Getting ready',
+    INDEXED: 'AI searchable',
+    FAILED: 'Failed to include in AI chat',
+    DISABLED: 'Turned off'
 };
 
 const searchIndexStatusColor = (status?: string) => {
@@ -178,7 +185,8 @@ const canRetrySearchIndex = (document: NonNullable<RecordDetail['documents']>[nu
     Boolean(
         props.form.id &&
         document.id &&
-        document.extractionStatus === 'READY' &&
+        // A failed extraction can be retried too, since retrying re-runs extraction and indexing.
+        (document.extractionStatus === 'READY' || document.extractionStatus === 'FAILED') &&
         ['NOT_INDEXED', 'FAILED', 'DISABLED', undefined].includes(document.searchIndexStatus)
     );
 
@@ -192,7 +200,7 @@ const retrySearchIndex = async (document: NonNullable<RecordDetail['documents']>
         document.searchIndexStatus = 'INDEXING';
         document.searchIndexedAt = undefined;
         document.searchIndexError = undefined;
-        snackbar.showSnackbar('Document AI indexing queued.', 'success', []);
+        snackbar.showSnackbar('Reading this document again. It will be AI searchable shortly.', 'success', []);
     } finally {
         indexingDocumentId.value = undefined;
     }
@@ -450,13 +458,13 @@ const documentsCount = computed(() => {
                                 {{ document.file ? 'Uploaded' : 'Needs file' }}
                             </v-chip>
                             <v-chip size="small" :color="searchIndexStatusColor(document.searchIndexStatus)" variant="tonal">
-                                {{ formatStatus(document.searchIndexStatus) }}
+                                {{ searchIndexStatusLabels[document.searchIndexStatus ?? 'NOT_INDEXED'] }}
                             </v-chip>
                             <div class="record-review-row__actions">
                                 <v-btn v-if="document.file" color="secondary" variant="outlined" size="small" @click="viewDocument(document.file)">
                                     View
                                 </v-btn>
-                                <v-tooltip v-if="canRetrySearchIndex(document)" text="Let AI search include this document when answering questions.">
+                                <v-tooltip v-if="canRetrySearchIndex(document)" text="Read this document again so AI search can use it.">
                                     <template #activator="{ props: tooltipProps }">
                                         <v-btn
                                             v-bind="tooltipProps"
@@ -656,24 +664,24 @@ const documentsCount = computed(() => {
 
                     <DetailSection id="documents" title="Documents" :icon="FileTextIcon">
                         <v-table v-if="form.documents?.length" density="compact" class="detail-table">
-                            <thead><tr><th>Document Name</th><th>Text Extraction</th><th>AI Search</th><th class="text-right">Actions</th></tr></thead>
+                            <thead><tr><th>Document Name</th><th>Reading</th><th>AI Search</th><th class="text-right">Actions</th></tr></thead>
                             <tbody>
                                 <tr v-for="(document, index) in form.documents" :key="document.id || index">
                                     <td>{{ document.name || 'Unnamed document' }}</td>
                                     <td>
                                         <v-chip size="x-small" color="secondary" variant="tonal">
-                                            {{ document.extractionStatus || 'PENDING' }}
+                                            {{ extractionStatusLabels[document.extractionStatus ?? 'PENDING'] }}
                                         </v-chip>
                                     </td>
                                     <td>
                                         <v-chip size="x-small" :color="searchIndexStatusColor(document.searchIndexStatus)" variant="tonal">
-                                            {{ formatStatus(document.searchIndexStatus) }}
+                                            {{ searchIndexStatusLabels[document.searchIndexStatus ?? 'NOT_INDEXED'] }}
                                         </v-chip>
                                     </td>
                                     <td class="text-right">
                                         <div class="d-inline-flex flex-wrap justify-end ga-2">
                                             <v-btn color="secondary" variant="outlined" size="x-small" @click="viewDocument(document.file)">View</v-btn>
-                                            <v-tooltip text="Let AI search include this document when answering questions.">
+                                            <v-tooltip text="Read this document again so AI search can use it.">
                                                 <template #activator="{ props: tooltipProps }">
                                                     <span v-bind="tooltipProps">
                                                         <v-btn

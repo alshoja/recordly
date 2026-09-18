@@ -39,6 +39,8 @@ export class DocumentChunkingService {
 
   private removeSensitiveInformation(text: string): string {
     return text
+      // PostgreSQL text columns reject NUL bytes, which some PDF extractions contain.
+      .replace(/\x00/g, '')
       .replace(/\b[A-Z]{3}\s?\d{7}\b/gi, '[REDACTED ID]')
       .replace(/\b[A-Z]{2}\s?\d{2}\s?\d{4}\s?\d{7}\b/gi, '[REDACTED ID]')
       .replace(/\b\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, '[REDACTED ID]')
