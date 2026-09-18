@@ -5,7 +5,7 @@ import { AiChatResponseDto } from '../dto/ai-chat-response.dto';
 import { RagDocumentChunkDto } from '../dto/rag-document-chunk.dto';
 import { RetrievedDocumentChunkDto } from '../dto/retrieved-document-chunk.dto';
 import { AiChatIntent } from '../enums/ai-chat-intent.enum';
-import { LLM_CLIENT, LlmClient } from '../llm/llm-client.interface';
+import { LLM_CLIENT, LlmClient, LlmDeltaHandler } from '../llm/llm-client.interface';
 import { RAG_ANSWER_PROMPT } from '../prompts/rag.prompts';
 import { DocumentHybridSearchService } from './document-hybrid-search.service';
 
@@ -19,6 +19,7 @@ export class RecordRagService {
   async searchInRecord(
     question: string,
     recordId?: number,
+    onDelta?: LlmDeltaHandler,
   ): Promise<AiChatResponseDto> {
     if (!recordId) {
       return {
@@ -34,17 +35,27 @@ export class RecordRagService {
       question,
       AiChatIntent.DOCUMENT_QUESTION,
       recordId,
+      onDelta,
     );
   }
 
-  async searchRecords(question: string): Promise<AiChatResponseDto> {
-    return this.answerFromDocumentChunks(question, AiChatIntent.DOCUMENT_SEARCH);
+  async searchRecords(
+    question: string,
+    onDelta?: LlmDeltaHandler,
+  ): Promise<AiChatResponseDto> {
+    return this.answerFromDocumentChunks(
+      question,
+      AiChatIntent.DOCUMENT_SEARCH,
+      undefined,
+      onDelta,
+    );
   }
 
   private async answerFromDocumentChunks(
     question: string,
     intent: AiChatIntent.DOCUMENT_QUESTION | AiChatIntent.DOCUMENT_SEARCH,
     recordId?: number,
+    onDelta?: LlmDeltaHandler,
   ): Promise<AiChatResponseDto> {
     const documentChunks = await this.findRecordDocumentChunks(question, recordId);
     if (documentChunks.length === 0) {
@@ -59,13 +70,16 @@ export class RecordRagService {
       };
     }
 
-    const answer = await this.llmClient.chat({
-      systemPrompt: RAG_ANSWER_PROMPT,
-      userContent: JSON.stringify({ question, documentChunks }),
-      temperature: 0.1,
-      unavailableMessage:
-        'Recordly AI Assistant cannot answer document questions right now.',
-    });
+    const answer = await this.llmClient.chat(
+      {
+        systemPrompt: RAG_ANSWER_PROMPT,
+        userContent: JSON.stringify({ question, documentChunks }),
+        temperature: 0.1,
+        unavailableMessage:
+          'Recordly AI Assistant cannot answer document questions right now.',
+      },
+      onDelta,
+    );
 
     if (!answer) {
       throw new ServiceUnavailableException(

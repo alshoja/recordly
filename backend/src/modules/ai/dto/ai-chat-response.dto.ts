@@ -8,5 +8,6 @@ export class AiChatResponseDto {
   answer: string;
   records: RecordSearchResultDto[];
   total: number;
+  recordId?: number;
   citations?: AiChatCitationDto[];
 }

@@ -3,7 +3,7 @@ import MarkdownIt from 'markdown-it'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowsMaximizeIcon, ArrowsMinimizeIcon, FileDescriptionIcon, MessageCircleIcon, RobotIcon, SendIcon, XIcon } from 'vue-tabler-icons'
-import { useAiChatStore, type AiChatRecordResult } from '@/stores/aiChat'
+import { useAiChatStore, type AiChatMessage, type AiChatRecordResult } from '@/stores/aiChat'
 
 const props = withDefaults(defineProps<{
   fullPage?: boolean
@@ -62,7 +62,7 @@ const followUpPrompts = [
 ]
 
 watch(
-  () => aiChatStore.messages.length,
+  () => [aiChatStore.messages.length, aiChatStore.messages.at(-1)?.content.length],
   async () => {
     await nextTick()
     if (messagesContainer.value) {
@@ -95,6 +95,34 @@ const getRecordLocation = (record: AiChatRecordResult) =>
   [record.city, record.state, record.country].filter(Boolean).join(', ')
 
 const renderAssistantMarkdown = (content: string) => markdownRenderer.render(content)
+
+const RECORD_LINK_PREFIX = '/edit/record/'
+const escapeMarkdownLinkText = (text: string) => text.replace(/[\\[\]]/g, '\\$&')
+
+const getRecordLink = (record: AiChatRecordResult) => {
+  const details = [record.status?.toLowerCase(), getRecordLocation(record)].filter(Boolean).join(' · ')
+  const link = `[${escapeMarkdownLinkText(getRecordName(record))}](${RECORD_LINK_PREFIX}${record.id})`
+  return details ? `- ${link} — ${details}` : `- ${link}`
+}
+
+const getMessageMarkdown = (message: AiChatMessage) => {
+  if (!message.records?.length) {
+    return message.content
+  }
+
+  return `${message.content}\n\n${message.records.map(getRecordLink).join('\n')}`
+}
+
+const handleMarkdownClick = (event: MouseEvent) => {
+  const link = (event.target as HTMLElement).closest('a')
+  const href = link?.getAttribute('href')
+  if (!href?.startsWith(RECORD_LINK_PREFIX)) {
+    return
+  }
+
+  event.preventDefault()
+  openRecord(href.slice(RECORD_LINK_PREFIX.length))
+}
 
 const openRecord = (recordId?: string) => {
   if (!recordId) {
@@ -206,45 +234,11 @@ const returnToPreviousPage = () => {
             <div
               v-else-if="message.role === 'assistant'"
               class="ai-chat-bubble ai-chat-markdown"
-              v-html="renderAssistantMarkdown(message.content)"
+              @click="handleMarkdownClick"
+              v-html="renderAssistantMarkdown(getMessageMarkdown(message))"
             />
             <div v-else class="ai-chat-bubble">
               {{ message.content }}
-            </div>
-
-            <div v-if="message.records?.length" class="ai-chat-records">
-              <v-card
-                v-for="record in message.records"
-                :key="record.id"
-                class="ai-chat-record-card"
-                variant="outlined"
-              >
-                <div class="d-flex justify-space-between align-start ga-2">
-                  <div>
-                    <div class="text-subtitle-2">{{ getRecordName(record) }}</div>
-                    <div class="text-caption text-medium-emphasis">
-                      {{ record.email || record.mobileNumber || 'No contact saved' }}
-                    </div>
-                    <div v-if="getRecordLocation(record)" class="text-caption text-medium-emphasis">
-                      {{ getRecordLocation(record) }}
-                    </div>
-                  </div>
-                  <v-chip v-if="record.status" size="x-small" color="secondary" variant="tonal">
-                    {{ record.status }}
-                  </v-chip>
-                </div>
-                <v-btn
-                  class="mt-2"
-                  size="small"
-                  color="secondary"
-                  variant="text"
-                  :disabled="!record.id"
-                  @click="openRecord(record.id)"
-                >
-                  Open record
-                </v-btn>
-              </v-card>
-
             </div>
 
             <div v-if="message.citations?.length" class="ai-chat-citations">
@@ -255,6 +249,8 @@ const returnToPreviousPage = () => {
                 size="x-small"
                 color="secondary"
                 variant="tonal"
+                link
+                @click="openRecord(String(citation.recordId))"
               >
                 {{ citation.documentName }} · Record #{{ citation.recordId }}<template v-if="citation.pageNumber"> · Page {{ citation.pageNumber }}</template>
               </v-chip>
@@ -307,7 +303,7 @@ const returnToPreviousPage = () => {
             </v-btn>
           </div>
 
-          <div v-if="aiChatStore.isLoading" class="ai-chat-message ai-chat-message-assistant">
+          <div v-if="aiChatStore.isLoading && !aiChatStore.isStreaming" class="ai-chat-message ai-chat-message-assistant">
             <div class="ai-chat-ai-label">
               <RobotIcon size="13" />
               <span>{{ assistantName }} · AI</span>
@@ -473,6 +469,25 @@ const returnToPreviousPage = () => {
   font-weight: 700;
 }
 
+.ai-chat-markdown :deep(a),
+.ai-chat-markdown :deep(a:visited) {
+  color: rgb(var(--v-theme-secondary));
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.ai-chat-markdown :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.ai-chat-markdown :deep(li) {
+  margin-bottom: 4px;
+}
+
+.ai-chat-markdown :deep(li:last-child) {
+  margin-bottom: 0;
+}
+
 .ai-chat-summary-card {
   width: 100%;
   max-width: 94%;
@@ -594,19 +609,6 @@ const returnToPreviousPage = () => {
   color: rgb(var(--v-theme-lightText));
   font-size: 0.68rem;
   font-weight: 600;
-}
-
-.ai-chat-records {
-  width: 100%;
-  max-width: 92%;
-  margin-top: 8px;
-}
-
-.ai-chat-record-card {
-  padding: 10px;
-  margin-bottom: 8px;
-  border-radius: 12px;
-  background: white;
 }
 
 .ai-chat-citations {

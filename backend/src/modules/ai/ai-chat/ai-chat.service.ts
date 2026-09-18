@@ -4,7 +4,7 @@ import { RecordStatus } from '../../records/enums/record-status.enum';
 import { AiChatIntentDto } from '../dto/ai-chat-intent.dto';
 import { AiChatResponseDto } from '../dto/ai-chat-response.dto';
 import { AiChatIntent } from '../enums/ai-chat-intent.enum';
-import { LLM_CLIENT, LlmClient } from '../llm/llm-client.interface';
+import { LLM_CLIENT, LlmClient, LlmDeltaHandler } from '../llm/llm-client.interface';
 import { RECORD_INTENT_PROMPT } from '../prompts/ai-chat.prompts';
 import { RecordRagService } from '../rag/record-rag.service';
 import { StructuredRetrievalService } from '../structured-retrieval/structured-retrieval.service';
@@ -17,22 +17,25 @@ export class AiChatService {
     private readonly structuredRetrievalService: StructuredRetrievalService,
   ) { }
 
-  async ask(message: string): Promise<AiChatResponseDto> {
+  async ask(
+    message: string,
+    onDelta?: LlmDeltaHandler,
+  ): Promise<AiChatResponseDto> {
     const recordIntent = await this.getRecordIntent(message);
 
     switch (recordIntent.intent) {
       case AiChatIntent.RECORD_SEARCH:
-        return this.structuredRetrievalService.getFilteredRecords(recordIntent.filters ?? {});
+        return this.structuredRetrievalService.getFilteredRecords(recordIntent.filters ?? {}, onDelta);
       case AiChatIntent.RECORD_NEXT_PAGE:
-        return this.structuredRetrievalService.getNextOrPreviousRecords('next', recordIntent.filters?.limit);
+        return this.structuredRetrievalService.getNextOrPreviousRecords('next', recordIntent.filters?.limit, onDelta);
       case AiChatIntent.RECORD_PREVIOUS_PAGE:
-        return this.structuredRetrievalService.getNextOrPreviousRecords('previous', recordIntent.filters?.limit);
+        return this.structuredRetrievalService.getNextOrPreviousRecords('previous', recordIntent.filters?.limit, onDelta);
       case AiChatIntent.RECORD_SUMMARY:
-        return this.structuredRetrievalService.getRecordSummary(recordIntent.recordId);
+        return this.structuredRetrievalService.getRecordSummary(recordIntent.recordId, recordIntent.filters, onDelta);
       case AiChatIntent.DOCUMENT_QUESTION:
-        return this.recordRagService.searchInRecord(message, recordIntent.recordId);
+        return this.recordRagService.searchInRecord(message, recordIntent.recordId, onDelta);
       case AiChatIntent.DOCUMENT_SEARCH:
-        return this.recordRagService.searchRecords(message);
+        return this.recordRagService.searchRecords(message, onDelta);
       case AiChatIntent.UNSUPPORTED:
       default:
         return {

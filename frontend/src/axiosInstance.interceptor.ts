@@ -1,7 +1,6 @@
 import axios, {
   AxiosError,
   type AxiosInstance,
-  type AxiosRequestConfig,
   type AxiosResponse,
   type InternalAxiosRequestConfig
 } from 'axios'
@@ -39,17 +38,11 @@ const getResponseErrorMessage = (data: unknown) => {
   return message ? formatValidationMessage(message) : undefined
 }
 
-const stopGlobalLoader = (config?: AxiosRequestConfig) => {
-  if (!config?.suppressGlobalLoader) {
-    useLoaderStore().stopLoading()
-  }
-}
-
 axiosInstance.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    if (!config.suppressGlobalLoader) {
-      useLoaderStore().startLoading()
-    }
+    const loaderStore = useLoaderStore()
+
+    loaderStore.startLoading()
     const token = localStorage.getItem('token')
     if (token) {
       config.headers.set('Authorization', `Bearer ${token}`)
@@ -57,19 +50,25 @@ axiosInstance.interceptors.request.use(
     return config
   },
   (error: AxiosError) => {
-    stopGlobalLoader(error.config)
+    const loaderStore = useLoaderStore()
+
+    loaderStore.stopLoading()
     return Promise.reject(error)
   }
 )
 
 axiosInstance.interceptors.response.use(
   (response: AxiosResponse) => {
-    stopGlobalLoader(response.config)
+    const loaderStore = useLoaderStore()
+
+    loaderStore.stopLoading()
     return response
   },
   (error: AxiosError) => {
+    const loaderStore = useLoaderStore()
+
     if (error.config?.suppressErrorSnackbar) {
-      stopGlobalLoader(error.config)
+      loaderStore.stopLoading()
       return Promise.reject(error)
     }
 
@@ -81,7 +80,7 @@ axiosInstance.interceptors.response.use(
       if (error.response.status === 401) {
         errorMessage = 'Session expired. Please log in again.'
         snackbar.showSnackbar(errorMessage, 'error', [])
-        stopGlobalLoader(error.config)
+        useLoaderStore().stopLoading()
         authStore.logout()
         return Promise.reject(error)
       }
@@ -102,7 +101,7 @@ axiosInstance.interceptors.response.use(
     }
 
     snackbar.showSnackbar(errorMessage, 'error', [])
-    stopGlobalLoader(error.config)
+    loaderStore.stopLoading()
     return Promise.reject(error)
   }
 )
