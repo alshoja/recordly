@@ -9,5 +9,6 @@ declare module '@vue/runtime-core' {
 declare module 'axios' {
   interface AxiosRequestConfig {
     suppressErrorSnackbar?: boolean
+    suppressGlobalLoader?: boolean
   }
 }

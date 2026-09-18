@@ -111,7 +111,8 @@ export const useAiChatStore = defineStore('aiChat', {
             message: trimmedMessage
           },
           {
-            timeout: AI_CHAT_TIMEOUT_MS
+            timeout: AI_CHAT_TIMEOUT_MS,
+            suppressGlobalLoader: true
           }
         )
         const records = response.data.records ?? []
