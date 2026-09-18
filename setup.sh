@@ -47,7 +47,8 @@ install_dependencies() {
   echo "🔹 Installing $service_name dependencies..."
   cd "$ROOT_DIR/$service_dir"
   remove_path node_modules
-  npm install
+  corepack enable
+  yarn install
 }
 
 # Step 0: copy .env.example to .env if not exists
@@ -137,7 +138,7 @@ docker compose up -d --build
 
 echo "🔹 Seeding development data..."
 for attempt in {1..12}; do
-  if docker compose exec -T backend npm run seed -- 100; then
+  if docker compose exec -T backend yarn seed 100; then
     break
   fi
 

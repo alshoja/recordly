@@ -21,11 +21,11 @@
     "seed": "ts-node --require tsconfig-paths/register src/seed.ts",
     "seed:prod": "node dist/seed",
     "typeorm": "ts-node --require tsconfig-paths/register ./node_modules/typeorm/cli",
-    "migration:run": "npm run typeorm migration:run -- -d ./database/typeorm.config.ts",
-    "migration:generate": "npm run typeorm -- -d ./database/typeorm.config.ts migration:generate ./database/migrations/$npm_config_name",
-    "migration:create": "npm run typeorm -- migration:create ./database/migrations/$npm_config_name",
-    "migration:revert": "npm run typeorm -- -d ./database/typeorm.config.ts migration:revert",
-    "migration:show": "npm run typeorm -- migration:show -d ./database/typeorm.config.ts"
+    "migration:run": "yarn typeorm migration:run -d ./database/typeorm.config.ts",
+    "migration:generate": "sh -c 'yarn typeorm -d ./database/typeorm.config.ts migration:generate ./database/migrations/$1' --",
+    "migration:create": "sh -c 'yarn typeorm migration:create ./database/migrations/$1' --",
+    "migration:revert": "yarn typeorm -d ./database/typeorm.config.ts migration:revert",
+    "migration:show": "yarn typeorm migration:show -d ./database/typeorm.config.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1064.0",
@@ -37,23 +37,24 @@
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.6",
     "@nestjs/jwt": "^11.0.0",
-    "@nestjs/mapped-types": "*",
+    "@nestjs/mapped-types": "2.1.1",
     "@nestjs/platform-express": "^11.0.6",
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/typeorm": "^11.0.0",
     "bcryptjs": "^3.0.3",
     "bull": "^4.16.5",
+    "bullmq": "5.77.6",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "libphonenumber-js": "^1.13.13",
     "openai": "^4.104.0",
-    "pdfjs-dist": "^5.4.624",
+    "pdfjs-dist": "5.4.624",
     "pg": "^8.13.1",
     "redis": "^5.11.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "typeorm": "^0.3.30",
-    "unpdf": "^1.6.2",
+    "unpdf": "1.6.2",
     "world-countries": "^5.1.0"
   },
   "devDependencies": {
@@ -98,5 +99,6 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
-  }
+  },
+  "packageManager": "yarn@4.18.0"
 }

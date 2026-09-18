@@ -21,8 +21,9 @@ function Install-ServiceDependencies {
     Push-Location (Join-Path $RootDir $ServiceDir)
     try {
         Remove-PathForce "node_modules"
-        npm install
-        if ($LASTEXITCODE -ne 0) { throw "npm install failed for $ServiceName" }
+        corepack enable
+        yarn install
+        if ($LASTEXITCODE -ne 0) { throw "yarn install failed for $ServiceName" }
     } finally {
         Pop-Location
     }
@@ -90,7 +91,7 @@ if ($LASTEXITCODE -ne 0) { throw "docker compose up failed" }
 
 Write-Host "Seeding development data..."
 for ($attempt = 1; $attempt -le 12; $attempt++) {
-    docker compose exec -T backend npm run seed -- 100
+    docker compose exec -T backend yarn seed 100
     if ($LASTEXITCODE -eq 0) {
         break
     }

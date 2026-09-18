@@ -20,10 +20,10 @@ Run backend commands through Docker from the repository root:
 
 ```sh
 docker compose logs -f backend
-docker compose exec backend npm run build
-docker compose exec backend npm run seed
-docker compose exec backend npm run migration:generate --name=<migration-name>
-docker compose exec backend npm run migration:run
+docker compose exec backend yarn build
+docker compose exec backend yarn seed
+docker compose exec backend yarn migration:generate <migration-name>
+docker compose exec backend yarn migration:run
 ```
 
 Project-wide workflow and agent rules live in [`../AGENTS.md`](../AGENTS.md).

@@ -36,8 +36,8 @@ generate, such as PostgreSQL extensions, specialized indexes, or data
 backfills. The production migration flow is:
 
 ```sh
-docker compose exec backend npm run migration:generate --name=<migration-name>
-docker compose exec backend npm run migration:run
+docker compose exec backend yarn migration:generate <migration-name>
+docker compose exec backend yarn migration:run
 ```
 
 Review generated migrations before committing. Commit migrations with the entity changes that caused them.
@@ -54,7 +54,7 @@ Production should only run committed migrations. Do not generate migrations in p
 Run seed logic through the backend container:
 
 ```sh
-docker compose exec backend npm run seed
+docker compose exec backend yarn seed
 ```
 
 Seed users and seed values should come from environment variables or safe placeholders. Do not commit production credentials or real personal records.

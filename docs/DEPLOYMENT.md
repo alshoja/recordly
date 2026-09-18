@@ -69,7 +69,7 @@ Provide production values for database, Redis, backend, frontend, JWT, encryptio
 
 Production should run committed migrations only. Do not run `migration:generate` in production.
 
-Before running migrations from the production backend container, confirm the production image includes the migration config and runtime command. The current backend Dockerfile is optimized for `npm run start:prod`, so production migration execution may need a dedicated release step or image adjustment.
+Before running migrations from the production backend container, confirm the production image includes the migration config and runtime command. The current backend Dockerfile is optimized for running the compiled app directly (`node dist/main`), so production migration execution may need a dedicated release step or image adjustment.
 
 ## Checklist
 

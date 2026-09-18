@@ -4,6 +4,13 @@ npm-debug.log
 yarn-error.log
 .pnpm-debug.log
 
+# Yarn Berry (node-modules linker; no Plug'n'Play files to ignore)
+**/.yarn/install-state.gz
+**/.yarn/cache
+**/.yarn/unplugged
+**/.yarn/build-state.yml
+**/.pnp.*
+
 # Environment variables
 .env
 .env.local
