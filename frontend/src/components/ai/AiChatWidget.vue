@@ -110,7 +110,8 @@ const getMessageMarkdown = (message: AiChatMessage) => {
     return message.content
   }
 
-  return `${message.content}\n\n${message.records.map(getRecordLink).join('\n')}`
+  const label = message.intent?.startsWith('document_') ? '**Records with these documents**\n\n' : ''
+  return `${message.content}\n\n${label}${message.records.map(getRecordLink).join('\n')}`
 }
 
 const handleMarkdownClick = (event: MouseEvent) => {

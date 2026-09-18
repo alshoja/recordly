@@ -9,6 +9,10 @@ import { RECORD_INTENT_PROMPT } from '../prompts/ai-chat.prompts';
 import { RecordRagService } from '../rag/record-rag.service';
 import { StructuredRetrievalService } from '../structured-retrieval/structured-retrieval.service';
 
+// Filters that only match record fields by text. Anything else (status, city,
+// abroad, ...) is a structured request that documents cannot answer.
+const TEXT_FILTER_KEYS = ['name', 'search', 'email', 'mobileNumber'];
+
 @Injectable({ scope: Scope.REQUEST })
 export class AiChatService {
   constructor(
@@ -25,13 +29,13 @@ export class AiChatService {
 
     switch (recordIntent.intent) {
       case AiChatIntent.RECORD_SEARCH:
-        return this.structuredRetrievalService.getFilteredRecords(recordIntent.filters ?? {}, onDelta);
+        return this.searchRecordsThenDocuments(message, recordIntent.filters ?? {}, onDelta);
       case AiChatIntent.RECORD_NEXT_PAGE:
         return this.structuredRetrievalService.getNextOrPreviousRecords('next', recordIntent.filters?.limit, onDelta);
       case AiChatIntent.RECORD_PREVIOUS_PAGE:
         return this.structuredRetrievalService.getNextOrPreviousRecords('previous', recordIntent.filters?.limit, onDelta);
       case AiChatIntent.RECORD_SUMMARY:
-        return this.structuredRetrievalService.getRecordSummary(recordIntent.recordId, recordIntent.filters, onDelta);
+        return this.summarizeRecordThenSearchDocuments(message, recordIntent, onDelta);
       case AiChatIntent.DOCUMENT_QUESTION:
         return this.recordRagService.searchInRecord(message, recordIntent.recordId, onDelta);
       case AiChatIntent.DOCUMENT_SEARCH:
@@ -47,6 +51,58 @@ export class AiChatService {
           total: 0,
         };
     }
+  }
+
+  /**
+   * A name, email or keyword can live only inside an indexed document (for
+   * example a child named in a certificate), so when the record fields match
+   * nothing the same question is answered from the document chunks.
+   */
+  private async searchRecordsThenDocuments(
+    message: string,
+    filters: RecordSearchFilterDto,
+    onDelta?: LlmDeltaHandler,
+  ): Promise<AiChatResponseDto> {
+    const result = await this.structuredRetrievalService.getFilteredRecords(filters, onDelta);
+
+    const usedFilters = Object.keys(filters).filter((key) => key !== 'limit');
+    const isTextOnly =
+      usedFilters.length > 0 &&
+      usedFilters.every((key) => TEXT_FILTER_KEYS.includes(key));
+
+    return result.total === 0 && isTextOnly
+      ? this.searchDocumentsAfterNoRecord(message, onDelta)
+      : result;
+  }
+
+  /** Tells the user the records had no match before answering from the documents. */
+  private async searchDocumentsAfterNoRecord(
+    message: string,
+    onDelta?: LlmDeltaHandler,
+  ): Promise<AiChatResponseDto> {
+    const notice =
+      "I couldn't find a matching record, so I searched the uploaded documents instead.\n\n";
+    onDelta?.(notice);
+
+    const result = await this.recordRagService.searchRecords(message, onDelta);
+    return { ...result, answer: notice + result.answer };
+  }
+
+  private async summarizeRecordThenSearchDocuments(
+    message: string,
+    recordIntent: AiChatIntentDto,
+    onDelta?: LlmDeltaHandler,
+  ): Promise<AiChatResponseDto> {
+    const result = await this.structuredRetrievalService.getRecordSummary(
+      recordIntent.recordId,
+      recordIntent.filters,
+      onDelta,
+    );
+    const askedAboutName = !recordIntent.recordId && recordIntent.filters?.name;
+
+    return result.total === 0 && askedAboutName
+      ? this.searchDocumentsAfterNoRecord(message, onDelta)
+      : result;
   }
 
   private async getRecordIntent(message: string): Promise<AiChatIntentDto> {

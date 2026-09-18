@@ -9,21 +9,17 @@ import { Document } from '../../records/entities/document.entity';
 import { Record as RecordEntity } from '../../records/entities/record.entity';
 import { RecordStatus } from '../../records/enums/record-status.enum';
 import { RecordQueryService } from '../../records/services/record-query.service';
+import { RagDocumentChunkDto } from '../dto/rag-document-chunk.dto';
 import { RetrievedDocumentChunkDto } from '../dto/retrieved-document-chunk.dto';
 
 const DOCUMENT_CHUNK_LIMIT = 8;
-const SUMMARY_CHUNK_LIMIT = 200;
-const SUMMARY_CHARACTER_LIMIT = 30_000;
+// Chunks are ~1,200 characters, so this keeps a summary prompt around 30k characters.
+const SUMMARY_CHUNK_LIMIT = 25;
 const DISTANCE_THRESHOLD = 0.8;
 
 interface VectorSearchResult {
   chunkId: number;
   rank: number;
-}
-
-export interface RecordDocumentContent {
-  chunks: RetrievedDocumentChunkDto[];
-  truncated: boolean;
 }
 
 interface HybridScore {
@@ -110,51 +106,7 @@ export class DocumentHybridSearchService {
     }
 
     const uniqueChunkIds = [...new Set(chunkIds)].slice(0, DOCUMENT_CHUNK_LIMIT);
-    const query = this.selectChunkColumns(
-      this.buildAuthorizedChunkQuery(recordId),
-    ).andWhere('chunk.id IN (:...chunkIds)', { chunkIds: uniqueChunkIds });
-
-    const rows = await query.getRawMany<Record<string, unknown>>();
-    const rowsByChunkId = new Map(
-      rows.map((row) => [Number(row.chunkId), this.mapChunkRow(row)]),
-    );
-
-    return uniqueChunkIds
-      .map((chunkId) => rowsByChunkId.get(chunkId))
-      .filter((chunk): chunk is RetrievedDocumentChunkDto => Boolean(chunk));
-  }
-
-  /**
-   * Returns the document text of one record in reading order, for summaries.
-   * Stops at a character budget so the model prompt stays bounded.
-   */
-  async findRecordDocumentContent(recordId: number): Promise<RecordDocumentContent> {
-    const rows = await this.selectChunkColumns(
-      this.buildAuthorizedChunkQuery(recordId),
-    )
-      .orderBy('chunk.documentId', 'ASC')
-      .addOrderBy('chunk.chunkIndex', 'ASC')
-      .limit(SUMMARY_CHUNK_LIMIT + 1)
-      .getRawMany<Record<string, unknown>>();
-
-    const chunks: RetrievedDocumentChunkDto[] = [];
-    let characters = 0;
-    for (const row of rows.slice(0, SUMMARY_CHUNK_LIMIT)) {
-      const chunk = this.mapChunkRow(row);
-      if (characters + chunk.content.length > SUMMARY_CHARACTER_LIMIT) {
-        return { chunks, truncated: true };
-      }
-      characters += chunk.content.length;
-      chunks.push(chunk);
-    }
-
-    return { chunks, truncated: rows.length > SUMMARY_CHUNK_LIMIT };
-  }
-
-  private selectChunkColumns(
-    query: SelectQueryBuilder<DocumentChunk>,
-  ): SelectQueryBuilder<DocumentChunk> {
-    return query
+    const query = this.buildAuthorizedChunkQuery(recordId)
       .select('chunk.id', 'chunkId')
       .addSelect('chunk.documentId', 'documentId')
       .addSelect('chunk.recordsId', 'recordId')
@@ -168,7 +120,43 @@ export class DocumentHybridSearchService {
       .addSelect('record.status', 'status')
       .addSelect('record.city', 'city')
       .addSelect('record.state', 'state')
-      .addSelect('record.country', 'country');
+      .addSelect('record.country', 'country')
+      .andWhere('chunk.id IN (:...chunkIds)', { chunkIds: uniqueChunkIds });
+
+    const rows = await query.getRawMany<Record<string, unknown>>();
+    const rowsByChunkId = new Map(
+      rows.map((row) => [Number(row.chunkId), this.mapChunkRow(row)]),
+    );
+
+    return uniqueChunkIds
+      .map((chunkId) => rowsByChunkId.get(chunkId))
+      .filter((chunk): chunk is RetrievedDocumentChunkDto => Boolean(chunk));
+  }
+
+  /** Reads a record's document text in reading order, at most SUMMARY_CHUNK_LIMIT chunks. */
+  async findRecordDocumentContent(
+    recordId: number,
+  ): Promise<{ chunks: RagDocumentChunkDto[]; truncated: boolean }> {
+    const rows = await this.buildAuthorizedChunkQuery(recordId)
+      .select('chunk.documentId', 'documentId')
+      .addSelect('chunk.recordsId', 'recordId')
+      .addSelect('chunk.pageNumber', 'pageNumber')
+      .addSelect('chunk.content', 'content')
+      .addSelect('document.name', 'documentName')
+      .orderBy('chunk.documentId', 'ASC')
+      .addOrderBy('chunk.chunkIndex', 'ASC')
+      .limit(SUMMARY_CHUNK_LIMIT + 1)
+      .getRawMany<Record<string, unknown>>();
+
+    const chunks = rows.slice(0, SUMMARY_CHUNK_LIMIT).map((row) => ({
+      documentId: Number(row.documentId),
+      recordId: Number(row.recordId),
+      documentName: String(row.documentName || 'Uploaded document'),
+      pageNumber: row.pageNumber ? Number(row.pageNumber) : undefined,
+      content: String(row.content),
+    }));
+
+    return { chunks, truncated: rows.length > SUMMARY_CHUNK_LIMIT };
   }
 
   private buildAuthorizedChunkQuery(

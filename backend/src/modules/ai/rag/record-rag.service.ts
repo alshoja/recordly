@@ -63,7 +63,7 @@ export class RecordRagService {
         role: 'assistant',
         intent,
         answer:
-          'I could not find relevant indexed document content that you are allowed to access.',
+          "I couldn't find anything about that in the uploaded documents.",
         records: [],
         total: 0,
         citations: [],
@@ -73,7 +73,15 @@ export class RecordRagService {
     const answer = await this.llmClient.chat(
       {
         systemPrompt: RAG_ANSWER_PROMPT,
-        userContent: JSON.stringify({ question, documentChunks }),
+        userContent: JSON.stringify({
+          question,
+          documentChunks: documentChunks.map(({ documentName, pageNumber, content }, index) => ({
+            source: index + 1,
+            documentName,
+            pageNumber,
+            content,
+          })),
+        }),
         temperature: 0.1,
         unavailableMessage:
           'Recordly AI Assistant cannot answer document questions right now.',
@@ -87,14 +95,19 @@ export class RecordRagService {
       );
     }
 
-    const records = this.getRecords(documentChunks);
+    // The answer is the source of truth: only the sources it cites (as [1], [2])
+    // are shown as records and citations, so a "not found" answer shows neither.
+    const citedChunks = documentChunks.filter((_, index) =>
+      answer.includes(`[${index + 1}]`),
+    );
+    const records = this.getRecords(citedChunks);
     return {
       role: 'assistant',
       intent,
-      answer,
+      answer: answer.replace(/\s*\[\d+\]/g, ''),
       records,
       total: records.length,
-      citations: this.getCitations(documentChunks),
+      citations: this.getCitations(citedChunks),
     };
   }
 

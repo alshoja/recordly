@@ -10,3 +10,4 @@ Server-Sent Events variant at `POST /api/ai-chat/message/stream` (Nest `@Sse` wi
 - The stream endpoint emits `delta` events (`{ text }`) while the model writes an answer, then `done` with the full `AiChatResponseDto`, or `error` (`{ message }`). Answers that need no model text send only `done`.
 - Streaming is optional per call: pass an `onDelta` handler through to `LlmClient.chat`. Intent classification is never streamed.
 - Reverse proxies must not buffer this route (`proxy_buffering off`); Nest's `@Sse` also sends `X-Accel-Buffering: no`.
+- When a record search finds nothing and its only filters are free text (name, keyword, email, phone), or a by-name summary finds no record, the same question is answered from indexed document chunks, so names that exist only inside documents are still found. Structured filters (status, city, abroad, and so on) never fall back.

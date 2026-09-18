@@ -8,8 +8,6 @@ import { RecordSummaryDto } from '../dto/record-summary.dto';
 import { AiChatIntent } from '../enums/ai-chat-intent.enum';
 import { LLM_CLIENT, LlmClient, LlmDeltaHandler } from '../llm/llm-client.interface';
 import { RECORD_LIST_REPLY_PROMPT, RECORD_SUMMARY_PROMPT } from '../prompts/ai-chat.prompts';
-import { RetrievedDocumentChunkDto } from '../dto/retrieved-document-chunk.dto';
-import { AiChatCitationDto } from '../dto/ai-chat-citation.dto';
 import { DocumentHybridSearchService } from '../rag/document-hybrid-search.service';
 import { StructuredRetrievalContextService } from './structured-retrieval-context.service';
 
@@ -137,8 +135,9 @@ export class StructuredRetrievalService {
       'children',
     ]);
     
-    const { chunks, truncated } =
-      await this.documentHybridSearchService.findRecordDocumentContent(recordId);
+    const { chunks, truncated } = record.documents?.length
+      ? await this.documentHybridSearchService.findRecordDocumentContent(recordId)
+      : { chunks: [], truncated: false };
     const answer = await this.llmClient.chat(
       {
         systemPrompt: RECORD_SUMMARY_PROMPT,
@@ -171,7 +170,15 @@ export class StructuredRetrievalService {
       records: [],
       total: 1,
       recordId,
-      citations: this.getDocumentCitations(chunks),
+      // One citation per document, not per chunk.
+      citations: [
+        ...new Map(
+          chunks.map(({ documentId, recordId, documentName }) => [
+            documentId,
+            { documentId, recordId, documentName },
+          ]),
+        ).values(),
+      ],
     };
   }
 
@@ -234,21 +241,6 @@ export class StructuredRetrievalService {
     );
 
     return total === 1 ? records[0].id : undefined;
-  }
-
-  private getDocumentCitations(
-    chunks: RetrievedDocumentChunkDto[],
-  ): AiChatCitationDto[] {
-    const citations = new Map<number, AiChatCitationDto>();
-    for (const chunk of chunks) {
-      citations.set(chunk.documentId, {
-        documentId: chunk.documentId,
-        recordId: chunk.recordId,
-        documentName: chunk.documentName,
-      });
-    }
-
-    return [...citations.values()];
   }
 
   private getRecordLimit(limit?: number): number {
