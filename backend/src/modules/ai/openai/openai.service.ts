@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { EMBEDDING_DIMENSIONS } from '../../../shared/utilities/vector.utility';
 import { ChatRequestDto } from '../dto/chat-request.dto';
-import { LlmClient } from '../llm/llm-client.interface';
+import { LlmClient, LlmDeltaHandler } from '../llm/llm-client.interface';
 
 @Injectable()
 export class OpenAiService implements LlmClient {
@@ -15,21 +15,29 @@ export class OpenAiService implements LlmClient {
     });
   }
 
-  async chat(request: ChatRequestDto): Promise<string> {
+  async chat(
+    request: ChatRequestDto,
+    onDelta?: LlmDeltaHandler,
+  ): Promise<string> {
     this.ensureAiEnabled();
 
-    try {
-      const response = await this.client.chat.completions.create({
-        model: this.configService.get<string>('config.openaiModel')!,
-        temperature: request.temperature,
-        response_format:
-          request.format === 'json' ? { type: 'json_object' } : undefined,
-        messages: [
-          { role: 'system', content: request.systemPrompt },
-          { role: 'user', content: request.userContent },
-        ],
-      });
+    const completionRequest = {
+      model: this.configService.get<string>('config.openaiModel')!,
+      temperature: request.temperature,
+      response_format:
+        request.format === 'json' ? { type: 'json_object' as const } : undefined,
+      messages: [
+        { role: 'system' as const, content: request.systemPrompt },
+        { role: 'user' as const, content: request.userContent },
+      ],
+    };
 
+    try {
+      if (onDelta) {
+        return await this.readChatStream(completionRequest, onDelta);
+      }
+
+      const response = await this.client.chat.completions.create(completionRequest);
       return response.choices[0]?.message?.content?.trim() ?? '';
     } catch {
       throw new ServiceUnavailableException(
@@ -37,6 +45,27 @@ export class OpenAiService implements LlmClient {
           'Recordly AI Assistant cannot reach OpenAI right now.',
       );
     }
+  }
+
+  private async readChatStream(
+    completionRequest: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
+    onDelta: LlmDeltaHandler,
+  ): Promise<string> {
+    const stream = await this.client.chat.completions.create({
+      ...completionRequest,
+      stream: true,
+    });
+    let content = '';
+
+    for await (const chunk of stream) {
+      const text = chunk.choices[0]?.delta?.content;
+      if (text) {
+        content += text;
+        onDelta(text);
+      }
+    }
+
+    return content.trim();
   }
 
   async embed(input: string): Promise<number[]> {

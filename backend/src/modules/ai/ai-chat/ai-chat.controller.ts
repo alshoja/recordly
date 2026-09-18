@@ -1,4 +1,13 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  MessageEvent,
+  Post,
+  RequestMethod,
+  Sse,
+} from '@nestjs/common';
+import { Observable } from 'rxjs';
 import { AiChatMessageDto } from '../dto/ai-chat-message.dto';
 import { AiChatService } from './ai-chat.service';
 
@@ -9,5 +18,34 @@ export class AiChatController {
   @Post('message')
   ask(@Body() aiChatMessageDto: AiChatMessageDto) {
     return this.aiChatService.ask(aiChatMessageDto.message);
+  }
+
+  /**
+   * Server-Sent Events variant of `message`. Emits `delta` events with answer
+   * text as the model generates it, then `done` with the full response, or
+   * `error`. Answers that need no model text send only `done`.
+   */
+  @Sse('message/stream', { method: RequestMethod.POST })
+  @HttpCode(200)
+  askStream(@Body() aiChatMessageDto: AiChatMessageDto): Observable<MessageEvent> {
+    return new Observable<MessageEvent>((subscriber) => {
+      this.aiChatService
+        .ask(aiChatMessageDto.message, (text) =>
+          subscriber.next({ type: 'delta', data: { text } }),
+        )
+        .then((response) => subscriber.next({ type: 'done', data: response }))
+        .catch((error: unknown) =>
+          subscriber.next({
+            type: 'error',
+            data: {
+              message:
+                error instanceof Error
+                  ? error.message
+                  : 'Recordly AI Assistant could not answer right now.',
+            },
+          }),
+        )
+        .finally(() => subscriber.complete());
+    });
   }
 }

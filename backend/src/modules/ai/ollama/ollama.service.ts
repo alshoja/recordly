@@ -1,13 +1,15 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ChatRequestDto } from '../dto/chat-request.dto';
-import { LlmClient } from '../llm/llm-client.interface';
+import { LlmClient, LlmDeltaHandler } from '../llm/llm-client.interface';
 
 interface OllamaChatResponse {
   message?: {
     content?: string;
   };
 }
+
+const parseChatLine = (line: string) => JSON.parse(line) as OllamaChatResponse;
 
 interface OllamaEmbeddingResponse {
   embeddings?: number[][];
@@ -17,7 +19,10 @@ interface OllamaEmbeddingResponse {
 export class OllamaService implements LlmClient {
   constructor(private readonly configService: ConfigService) {}
 
-  async chat(request: ChatRequestDto): Promise<string> {
+  async chat(
+    request: ChatRequestDto,
+    onDelta?: LlmDeltaHandler,
+  ): Promise<string> {
     this.ensureAiEnabled();
 
     try {
@@ -30,7 +35,7 @@ export class OllamaService implements LlmClient {
           },
           body: JSON.stringify({
             model: this.configService.get<string>('config.ollamaModel'),
-            stream: false,
+            stream: Boolean(onDelta),
             format: request.format,
             options: {
               temperature: request.temperature,
@@ -53,6 +58,10 @@ export class OllamaService implements LlmClient {
         throw new Error(`Ollama responded with ${response.status}`);
       }
 
+      if (onDelta) {
+        return await this.readChatStream(response, onDelta);
+      }
+
       const data = (await response.json()) as OllamaChatResponse;
       return data.message?.content?.trim() ?? '';
     } catch {
@@ -61,6 +70,40 @@ export class OllamaService implements LlmClient {
           'Recordly AI Assistant cannot reach Ollama right now.',
       );
     }
+  }
+
+  private async readChatStream(
+    response: Response,
+    onDelta: LlmDeltaHandler,
+  ): Promise<string> {
+    if (!response.body) {
+      throw new Error('Ollama returned no stream');
+    }
+
+    const decoder = new TextDecoder();
+    let pending = '';
+    let content = '';
+
+    const handleLine = (line: string) => {
+      const text = parseChatLine(line).message?.content;
+      if (text) {
+        content += text;
+        onDelta(text);
+      }
+    };
+
+    for await (const chunk of response.body) {
+      pending += decoder.decode(chunk, { stream: true });
+      const lines = pending.split('\n');
+      pending = lines.pop() ?? '';
+      lines.filter((line) => line.trim()).forEach(handleLine);
+    }
+
+    if (pending.trim()) {
+      handleLine(pending);
+    }
+
+    return content.trim();
   }
 
   async embed(input: string): Promise<number[]> {

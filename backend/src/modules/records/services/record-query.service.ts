@@ -154,17 +154,19 @@ export class RecordQueryService {
       );
     }
 
-    if (filters.name) {
+    // Each word must match the first or last name, so "Ervin Smitham" finds
+    // firstName "Ervin" + lastName "Smitham".
+    (filters.name?.split(/\s+/).filter(Boolean) ?? []).forEach((word, index) => {
       query.andWhere(
         new Brackets((qb) => {
-          qb.where('record.firstName ILIKE :name', {
-            name: `%${filters.name}%`,
-          }).orWhere('record.lastName ILIKE :name', {
-            name: `%${filters.name}%`,
+          qb.where(`record.firstName ILIKE :nameWord${index}`, {
+            [`nameWord${index}`]: `%${word}%`,
+          }).orWhere(`record.lastName ILIKE :nameWord${index}`, {
+            [`nameWord${index}`]: `%${word}%`,
           });
         }),
       );
-    }
+    });
 
     for (const key of ['email', 'mobileNumber', 'city', 'state', 'country'] as const) {
       if (filters[key]) {

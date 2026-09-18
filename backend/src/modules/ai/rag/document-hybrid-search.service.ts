@@ -9,9 +9,12 @@ import { Document } from '../../records/entities/document.entity';
 import { Record as RecordEntity } from '../../records/entities/record.entity';
 import { RecordStatus } from '../../records/enums/record-status.enum';
 import { RecordQueryService } from '../../records/services/record-query.service';
+import { RagDocumentChunkDto } from '../dto/rag-document-chunk.dto';
 import { RetrievedDocumentChunkDto } from '../dto/retrieved-document-chunk.dto';
 
 const DOCUMENT_CHUNK_LIMIT = 8;
+// Chunks are ~1,200 characters, so this keeps a summary prompt around 30k characters.
+const SUMMARY_CHUNK_LIMIT = 25;
 const DISTANCE_THRESHOLD = 0.8;
 
 interface VectorSearchResult {
@@ -128,6 +131,32 @@ export class DocumentHybridSearchService {
     return uniqueChunkIds
       .map((chunkId) => rowsByChunkId.get(chunkId))
       .filter((chunk): chunk is RetrievedDocumentChunkDto => Boolean(chunk));
+  }
+
+  /** Reads a record's document text in reading order, at most SUMMARY_CHUNK_LIMIT chunks. */
+  async findRecordDocumentContent(
+    recordId: number,
+  ): Promise<{ chunks: RagDocumentChunkDto[]; truncated: boolean }> {
+    const rows = await this.buildAuthorizedChunkQuery(recordId)
+      .select('chunk.documentId', 'documentId')
+      .addSelect('chunk.recordsId', 'recordId')
+      .addSelect('chunk.pageNumber', 'pageNumber')
+      .addSelect('chunk.content', 'content')
+      .addSelect('document.name', 'documentName')
+      .orderBy('chunk.documentId', 'ASC')
+      .addOrderBy('chunk.chunkIndex', 'ASC')
+      .limit(SUMMARY_CHUNK_LIMIT + 1)
+      .getRawMany<Record<string, unknown>>();
+
+    const chunks = rows.slice(0, SUMMARY_CHUNK_LIMIT).map((row) => ({
+      documentId: Number(row.documentId),
+      recordId: Number(row.recordId),
+      documentName: String(row.documentName || 'Uploaded document'),
+      pageNumber: row.pageNumber ? Number(row.pageNumber) : undefined,
+      content: String(row.content),
+    }));
+
+    return { chunks, truncated: rows.length > SUMMARY_CHUNK_LIMIT };
   }
 
   private buildAuthorizedChunkQuery(

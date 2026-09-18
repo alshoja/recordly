@@ -5,7 +5,7 @@ import { AiChatResponseDto } from '../dto/ai-chat-response.dto';
 import { RagDocumentChunkDto } from '../dto/rag-document-chunk.dto';
 import { RetrievedDocumentChunkDto } from '../dto/retrieved-document-chunk.dto';
 import { AiChatIntent } from '../enums/ai-chat-intent.enum';
-import { LLM_CLIENT, LlmClient } from '../llm/llm-client.interface';
+import { LLM_CLIENT, LlmClient, LlmDeltaHandler } from '../llm/llm-client.interface';
 import { RAG_ANSWER_PROMPT } from '../prompts/rag.prompts';
 import { DocumentHybridSearchService } from './document-hybrid-search.service';
 
@@ -19,6 +19,7 @@ export class RecordRagService {
   async searchInRecord(
     question: string,
     recordId?: number,
+    onDelta?: LlmDeltaHandler,
   ): Promise<AiChatResponseDto> {
     if (!recordId) {
       return {
@@ -34,17 +35,27 @@ export class RecordRagService {
       question,
       AiChatIntent.DOCUMENT_QUESTION,
       recordId,
+      onDelta,
     );
   }
 
-  async searchRecords(question: string): Promise<AiChatResponseDto> {
-    return this.answerFromDocumentChunks(question, AiChatIntent.DOCUMENT_SEARCH);
+  async searchRecords(
+    question: string,
+    onDelta?: LlmDeltaHandler,
+  ): Promise<AiChatResponseDto> {
+    return this.answerFromDocumentChunks(
+      question,
+      AiChatIntent.DOCUMENT_SEARCH,
+      undefined,
+      onDelta,
+    );
   }
 
   private async answerFromDocumentChunks(
     question: string,
     intent: AiChatIntent.DOCUMENT_QUESTION | AiChatIntent.DOCUMENT_SEARCH,
     recordId?: number,
+    onDelta?: LlmDeltaHandler,
   ): Promise<AiChatResponseDto> {
     const documentChunks = await this.findRecordDocumentChunks(question, recordId);
     if (documentChunks.length === 0) {
@@ -52,20 +63,31 @@ export class RecordRagService {
         role: 'assistant',
         intent,
         answer:
-          'I could not find relevant indexed document content that you are allowed to access.',
+          "I couldn't find anything about that in the uploaded documents.",
         records: [],
         total: 0,
         citations: [],
       };
     }
 
-    const answer = await this.llmClient.chat({
-      systemPrompt: RAG_ANSWER_PROMPT,
-      userContent: JSON.stringify({ question, documentChunks }),
-      temperature: 0.1,
-      unavailableMessage:
-        'Recordly AI Assistant cannot answer document questions right now.',
-    });
+    const answer = await this.llmClient.chat(
+      {
+        systemPrompt: RAG_ANSWER_PROMPT,
+        userContent: JSON.stringify({
+          question,
+          documentChunks: documentChunks.map(({ documentName, pageNumber, content }, index) => ({
+            source: index + 1,
+            documentName,
+            pageNumber,
+            content,
+          })),
+        }),
+        temperature: 0.1,
+        unavailableMessage:
+          'Recordly AI Assistant cannot answer document questions right now.',
+      },
+      onDelta,
+    );
 
     if (!answer) {
       throw new ServiceUnavailableException(
@@ -73,14 +95,19 @@ export class RecordRagService {
       );
     }
 
-    const records = this.getRecords(documentChunks);
+    // The answer is the source of truth: only the sources it cites (as [1], [2])
+    // are shown as records and citations, so a "not found" answer shows neither.
+    const citedChunks = documentChunks.filter((_, index) =>
+      answer.includes(`[${index + 1}]`),
+    );
+    const records = this.getRecords(citedChunks);
     return {
       role: 'assistant',
       intent,
-      answer,
+      answer: answer.replace(/\s*\[\d+\]/g, ''),
       records,
       total: records.length,
-      citations: this.getCitations(documentChunks),
+      citations: this.getCitations(citedChunks),
     };
   }
 
