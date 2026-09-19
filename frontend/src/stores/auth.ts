@@ -36,12 +36,8 @@ export const useAuthStore = defineStore('auth', {
         firstName,
         lastName
       })
-      const { user, access_token } = response.data
-
-      this.user = user
-      localStorage.setItem('user', JSON.stringify(user))
-      localStorage.setItem('token', access_token)
-      router.push(this.returnUrl || '/dashboard/default')
+      // New accounts need administrator approval, so signup returns only a message.
+      return response.data.message as string
     },
     logout() {
       this.user = null
