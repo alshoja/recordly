@@ -1,4 +1,4 @@
-import { Inject, Injectable, Scope } from '@nestjs/common';
+import { Inject, Injectable, Logger, Scope } from '@nestjs/common';
 import { RecordSearchFilterDto } from '../../records/dto/search/record-search-filter.dto';
 import { RecordStatus } from '../../records/enums/record-status.enum';
 import { AiChatIntentDto } from '../dto/ai-chat-intent.dto';
@@ -15,6 +15,8 @@ const TEXT_FILTER_KEYS = ['name', 'search', 'email', 'mobileNumber'];
 
 @Injectable({ scope: Scope.REQUEST })
 export class AiChatService {
+  private readonly logger = new Logger(AiChatService.name);
+
   constructor(
     @Inject(LLM_CLIENT) private readonly llmClient: LlmClient,
     private readonly recordRagService: RecordRagService,
@@ -121,6 +123,10 @@ export class AiChatService {
     try {
       return this.normalizeIntent(JSON.parse(content));
     } catch {
+      // Only the length is logged: the parse error text can echo the user's message.
+      this.logger.warn(
+        `Intent response was not valid JSON (length ${content.length}); treating as unsupported`,
+      );
       return { intent: AiChatIntent.UNSUPPORTED };
     }
   }

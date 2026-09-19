@@ -174,7 +174,10 @@ export class ElasticsearchService implements OnModuleInit {
 
     try {
       return await this.client.ping();
-    } catch {
+    } catch (error) {
+      this.logger.warn(
+        `Elasticsearch ping failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return false;
     }
   }

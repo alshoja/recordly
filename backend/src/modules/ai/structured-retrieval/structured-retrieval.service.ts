@@ -1,4 +1,10 @@
-import { Inject, Injectable, Scope, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  Scope,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { RecordSearchFilterDto } from '../../records/dto/search/record-search-filter.dto';
 import { RecordSearchResultDto } from '../../records/dto/search/record-search-result.dto';
 import { Record as RecordEntity } from '../../records/entities/record.entity';
@@ -16,6 +22,8 @@ const MAX_RECORD_LIMIT = 50;
 
 @Injectable({ scope: Scope.REQUEST })
 export class StructuredRetrievalService {
+  private readonly logger = new Logger(StructuredRetrievalService.name);
+
   constructor(
     private readonly recordQueryService: RecordQueryService,
     @Inject(LLM_CLIENT) private readonly llmClient: LlmClient,
@@ -227,7 +235,10 @@ export class StructuredRetrievalService {
       );
 
       return answer || fallbackAnswer;
-    } catch {
+    } catch (error) {
+      this.logger.warn(
+        `Record list reply failed, using the templated answer: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return fallbackAnswer;
     }
   }
