@@ -23,6 +23,16 @@ restricted `S3_OCR_ACCESS_KEY` and `S3_OCR_SECRET_KEY` credentials.
 - Redis integration: `src/redis.module.ts`, `src/redis.service.ts`
 - Tesseract data: `eng.traineddata`
 
+## Behaviour
+
+- **A failing job fails.** Errors are not swallowed: BullMQ marks the job
+  failed and the backend receives the real reason. Failed jobs and worker
+  errors are logged.
+- **Time limit.** Each image gets 90 seconds (`OCR_TIMEOUT_MS` in
+  `src/ocr.processor.ts`; the backend stops waiting after 120 seconds). A hung
+  image fails with `OCR timed out`, its Tesseract worker is terminated, and the
+  next job runs.
+
 ## Common Tasks
 
 ```sh
