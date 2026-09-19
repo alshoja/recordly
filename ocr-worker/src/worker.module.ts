@@ -15,15 +15,6 @@ import { StorageService } from './storage.service';
     }),
     BullModule.registerQueue({
       name: process.env.OCR_QUEUE_NAME || 'ocr-queue',
-      defaultJobOptions: {
-        attempts: 2,
-        backoff: {
-          type: 'exponential',
-          delay: 2000,
-        },
-        removeOnComplete: 200,
-        removeOnFail: 500,
-      },
     }),
   ],
   exports: [],
