@@ -9,12 +9,15 @@ import {
   Put,
   UseInterceptors,
 } from '@nestjs/common';
+import { Roles } from '../auth/roles.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
+import { UserRole } from './enums/user-role.enum';
 import { UsersService } from './users.service';
 
 @Controller('users')
+@Roles(UserRole.ADMIN)
 @UseInterceptors(ClassSerializerInterceptor)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
