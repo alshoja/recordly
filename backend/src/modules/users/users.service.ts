@@ -65,40 +65,20 @@ export class UsersService implements OnModuleInit {
     const adminPassword =
       this.configService.get<string>('DEFAULT_ADMIN_PASSWORD') ?? 'test@12345';
 
-    const existingAdmin = await this.userRepository.findOne({
-      where: { username: adminEmail },
-    });
-
-    if (!existingAdmin) {
-      const adminUser = this.userRepository.create({
-        username: adminEmail,
-        password: adminPassword,
-        firstName: 'System',
-        lastName: 'Admin',
-        isActive: true,
-        role: UserRole.ADMIN,
-      });
-      await this.userRepository.save(adminUser);
+    // Created once and then left alone: overwriting an existing admin on every
+    // boot would undo a password change or a deactivation.
+    if (await this.userRepository.existsBy({ username: adminEmail })) {
       return;
     }
 
-    const passwordMatches = await bcrypt.compare(
-      adminPassword,
-      existingAdmin.password,
-    );
-
-    if (
-      existingAdmin.role !== UserRole.ADMIN ||
-      !existingAdmin.isActive ||
-      !passwordMatches
-    ) {
-      await this.userRepository.update(existingAdmin.id, {
-        role: UserRole.ADMIN,
-        isActive: true,
-        password: passwordMatches
-          ? existingAdmin.password
-          : await bcrypt.hash(adminPassword, PASSWORD_SALT_ROUNDS),
-      });
-    }
+    const adminUser = this.userRepository.create({
+      username: adminEmail,
+      password: adminPassword,
+      firstName: 'System',
+      lastName: 'Admin',
+      isActive: true,
+      role: UserRole.ADMIN,
+    });
+    await this.userRepository.save(adminUser);
   }
 }
