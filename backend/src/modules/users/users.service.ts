@@ -8,6 +8,8 @@ import { User } from './entities/user.entity';
 import { UserRole } from './enums/user-role.enum';
 import * as bcrypt from 'bcryptjs';
 
+const PASSWORD_SALT_ROUNDS = 10;
+
 @Injectable()
 export class UsersService implements OnModuleInit {
   constructor(
@@ -40,7 +42,15 @@ export class UsersService implements OnModuleInit {
   }
 
   async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
-    await this.userRepository.update(id, updateUserDto);
+    const { password, ...fields } = updateUserDto;
+    const changes: Partial<User> = { ...fields };
+    // repository.update() skips the entity's @BeforeUpdate hook, so a new
+    // password has to be hashed here or it would be stored as plain text.
+    if (password) {
+      changes.password = await bcrypt.hash(password, PASSWORD_SALT_ROUNDS);
+    }
+
+    await this.userRepository.update(id, changes);
     return this.findOne(id);
   }
 
@@ -87,7 +97,7 @@ export class UsersService implements OnModuleInit {
         isActive: true,
         password: passwordMatches
           ? existingAdmin.password
-          : await bcrypt.hash(adminPassword, 10),
+          : await bcrypt.hash(adminPassword, PASSWORD_SALT_ROUNDS),
       });
     }
   }

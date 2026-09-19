@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -7,7 +8,11 @@ import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { SignInDto } from './dto/signin.dto';
 import * as bcrypt from 'bcryptjs';
-import type { AuthJwtPayload, AuthResponse } from './types/express';
+import type {
+  AuthJwtPayload,
+  AuthResponse,
+  SignUpResponse,
+} from './types/express';
 import { SignUpDto } from './dto/signup.dto';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import type { User } from '../users/entities/user.entity';
@@ -31,10 +36,17 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    // Checked after the password, so only the account's owner learns it is pending.
+    if (!user.isActive) {
+      throw new ForbiddenException(
+        'Your account is waiting for administrator approval.',
+      );
+    }
+
     return this.buildAuthResponse(user);
   }
 
-  async signUp(signUpDto: SignUpDto): Promise<AuthResponse> {
+  async signUp(signUpDto: SignUpDto): Promise<SignUpResponse> {
     const existingUser = await this.usersService.findOneByEmail(signUpDto.email);
     if (existingUser) {
       throw new ConflictException('Email already exists');
@@ -46,9 +58,14 @@ export class AuthService {
       username: signUpDto.email,
       password: signUpDto.password,
     };
-    const user = await this.usersService.create(createUserDto);
+    await this.usersService.create(createUserDto);
 
-    return this.buildAuthResponse(user);
+    // New accounts are inactive until an administrator approves them, so no
+    // token is issued: every request made with it would be rejected.
+    return {
+      message:
+        'Your account was created. An administrator must approve it before you can sign in.',
+    };
   }
 
   private async buildAuthResponse(user: User): Promise<AuthResponse> {

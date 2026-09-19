@@ -20,6 +20,10 @@ export interface AuthResponse {
   user: AuthenticatedUser;
 }
 
+export interface SignUpResponse {
+  message: string;
+}
+
 export interface AuthenticatedRequest extends Request {
   user: AuthJwtPayload;
 }

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 import Google from '@/assets/images/auth/social-google.svg';
 import { useAuthStore } from '@/stores/auth';
 import { useSnackbarStore } from '@/stores/snackbar.store';
+const router = useRouter();
 const checkbox = ref(false);
 const show1 = ref(false);
 const password = ref('');
@@ -15,7 +17,7 @@ const passwordRules = ref([
 ]);
 const emailRules = ref([(v: string) => !!v || 'E-mail is required', (v: string) => /.+@.+\..+/.test(v) || 'E-mail must be valid']);
 
-function validate() {
+async function validate() {
   Regform.value.validate();
   const authStore = useAuthStore();
   const snackbar = useSnackbarStore();
@@ -24,15 +26,15 @@ function validate() {
     return
   }
 
-  try {
-    const register = authStore.register(email.value, password.value, firstname.value, lastname.value);
-    snackbar.showSnackbar('Sign up completed successfully', 'success', []);
-    return register
-  } catch (error) {
-    console.log("🚀 ~ validate ~ error:", error)
+  // A failed request is already shown to the user by the axios interceptor.
+  const message = await authStore
+    .register(email.value, password.value, firstname.value, lastname.value)
+    .catch(() => undefined);
+  if (message) {
+    // 'warning' stays on screen until closed, unlike 'success', so the notice is not missed.
+    snackbar.showSnackbar(message, 'warning', []);
+    router.push('/auth/login');
   }
-
-
 }
 </script>
 
