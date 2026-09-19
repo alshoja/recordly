@@ -1,4 +1,5 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
+import { Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Job } from 'bullmq';
 import { Repository } from 'typeorm';
@@ -11,6 +12,8 @@ import { DocumentSearchIndexingService } from './services/document-search-indexi
 
 @Processor(DOCUMENT_EMBEDDING_QUEUE, { concurrency: 1 })
 export class DocumentIngestionProcessor extends WorkerHost {
+  private readonly logger = new Logger(DocumentIngestionProcessor.name);
+
   constructor(
     @InjectRepository(Document)
     private readonly documentRepository: Repository<Document>,
@@ -22,12 +25,30 @@ export class DocumentIngestionProcessor extends WorkerHost {
     super();
   }
 
+  // BullMQ keeps failed jobs in Redis but writes nothing to the app log, so a
+  // failed job would otherwise be invisible.
+  @OnWorkerEvent('failed')
+  onFailed(job: Job<{ documentId: number }> | undefined, error: Error): void {
+    this.logger.error(
+      `Ingestion job ${job?.id} for document ${job?.data.documentId} failed (attempt ${job?.attemptsMade}/${job?.opts.attempts}): ${error.message}`,
+      error.stack,
+    );
+  }
+
+  @OnWorkerEvent('error')
+  onError(error: Error): void {
+    this.logger.error(`Ingestion worker error: ${error.message}`, error.stack);
+  }
+
   async process(job: Job<{ documentId: number }>): Promise<void> {
     const document = await this.documentRepository.findOne({
       where: { id: job.data.documentId },
       relations: { records: true },
     });
     if (!document) {
+      this.logger.warn(
+        `Skipping ingestion job ${job.id}: document ${job.data.documentId} no longer exists`,
+      );
       return;
     }
 
