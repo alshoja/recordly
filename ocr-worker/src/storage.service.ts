@@ -5,7 +5,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { createWriteStream } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -41,7 +41,13 @@ export class StorageService implements OnModuleDestroy {
     const directory = join(tmpdir(), 'recordly-ocr');
     await mkdir(directory, { recursive: true });
     const filePath = join(directory, `${randomUUID()}${extname(object.key)}`);
-    await pipeline(response.Body, createWriteStream(filePath));
+    try {
+      await pipeline(response.Body, createWriteStream(filePath));
+    } catch (error) {
+
+      await rm(filePath, { force: true });
+      throw error;
+    }
     return filePath;
   }
 
