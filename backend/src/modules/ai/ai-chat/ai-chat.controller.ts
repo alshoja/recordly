@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   HttpCode,
+  HttpException,
+  Logger,
   MessageEvent,
   Post,
   RequestMethod,
@@ -13,6 +15,8 @@ import { AiChatService } from './ai-chat.service';
 
 @Controller('ai-chat')
 export class AiChatController {
+  private readonly logger = new Logger(AiChatController.name);
+
   constructor(private readonly aiChatService: AiChatService) {}
 
   @Post('message')
@@ -34,7 +38,8 @@ export class AiChatController {
           subscriber.next({ type: 'delta', data: { text } }),
         )
         .then((response) => subscriber.next({ type: 'done', data: response }))
-        .catch((error: unknown) =>
+        .catch((error: unknown) => {
+          this.logStreamError(error);
           subscriber.next({
             type: 'error',
             data: {
@@ -43,9 +48,25 @@ export class AiChatController {
                   ? error.message
                   : 'Recordly AI Assistant could not answer right now.',
             },
-          }),
-        )
+          });
+        })
         .finally(() => subscriber.complete());
     });
+  }
+
+  /**
+   * A stream error is sent to the client as an event, so it never reaches the
+   * global exception filter and has to be logged here.
+   */
+  private logStreamError(error: unknown): void {
+    const origin =
+      error instanceof HttpException && error.cause ? error.cause : error;
+
+    this.logger.error(
+      `POST /ai-chat/message/stream failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      origin instanceof Error ? origin.stack : undefined,
+    );
   }
 }

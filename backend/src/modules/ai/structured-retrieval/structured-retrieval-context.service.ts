@@ -1,4 +1,4 @@
-import { Inject, Injectable, Scope } from '@nestjs/common';
+import { Inject, Injectable, Logger, Scope } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { RedisService } from '../../../shared/services/redis.service';
 import { AuthenticatedRequest } from '../../auth/types/express';
@@ -8,6 +8,8 @@ const SEARCH_CONTEXT_TTL_SECONDS = 60 * 30;
 
 @Injectable({ scope: Scope.REQUEST })
 export class StructuredRetrievalContextService {
+  private readonly logger = new Logger(StructuredRetrievalContextService.name);
+
   constructor(
     @Inject(REQUEST)
     private readonly request: AuthenticatedRequest,
@@ -33,6 +35,9 @@ export class StructuredRetrievalContextService {
     try {
       return JSON.parse(context) as RecordSearchContextDto;
     } catch {
+      this.logger.warn(
+        `Discarded corrupt AI chat search context for user ${this.request.user.sub}`,
+      );
       await redis.del(this.getContextKey());
       return null;
     }

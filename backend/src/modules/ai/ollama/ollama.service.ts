@@ -64,10 +64,11 @@ export class OllamaService implements LlmClient {
 
       const data = (await response.json()) as OllamaChatResponse;
       return data.message?.content?.trim() ?? '';
-    } catch {
+    } catch (error) {
       throw new ServiceUnavailableException(
         request.unavailableMessage ??
           'Recordly AI Assistant cannot reach Ollama right now.',
+        { cause: error },
       );
     }
   }
@@ -133,9 +134,10 @@ export class OllamaService implements LlmClient {
       }
 
       return embedding;
-    } catch {
+    } catch (error) {
       throw new ServiceUnavailableException(
         'Recordly AI Assistant cannot generate document embeddings right now.',
+        { cause: error },
       );
     }
   }

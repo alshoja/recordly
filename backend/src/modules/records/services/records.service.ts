@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
   Scope,
 } from '@nestjs/common';
@@ -40,6 +41,8 @@ import { StoredObjectStream } from 'src/shared/interfaces/stored-object.interfac
 
 @Injectable({ scope: Scope.REQUEST })
 export class RecordsService {
+  private readonly logger = new Logger(RecordsService.name);
+
   constructor(
     @Inject(REQUEST)
     private request: AuthenticatedRequest,
@@ -141,7 +144,7 @@ export class RecordsService {
         lastCompletedStep: record.lastCompletedStep,
       };
     } catch (err) {
-      console.log('Rolling Back ', err);
+      this.logRollback(1, err);
       await queryRunner.rollbackTransaction();
       await this.storageService.delete(createdProfileReference).catch(() => undefined);
       throw err;
@@ -188,7 +191,7 @@ export class RecordsService {
         lastCompletedStep: record.lastCompletedStep,
       };
     } catch (err) {
-      console.log('Rolling Back ', err);
+      this.logRollback(2, err);
       await queryRunner.rollbackTransaction();
       throw err;
     } finally {
@@ -251,7 +254,7 @@ export class RecordsService {
         lastCompletedStep: record.lastCompletedStep,
       };
     } catch (err) {
-      console.log('Rolling Back ', err);
+      this.logRollback(3, err);
       await queryRunner.rollbackTransaction();
       throw err;
     } finally {
@@ -312,7 +315,7 @@ export class RecordsService {
         lastCompletedStep: record.lastCompletedStep,
       };
     } catch (err) {
-      console.log('Rolling Back ', err);
+      this.logRollback(4, err);
       await queryRunner.rollbackTransaction();
       throw err;
     } finally {
@@ -355,7 +358,7 @@ export class RecordsService {
         lastCompletedStep: record.lastCompletedStep,
       };
     } catch (err) {
-      console.log('Rolling Back ', err);
+      this.logRollback(5, err);
       await queryRunner.rollbackTransaction();
       throw err;
     } finally {
@@ -418,7 +421,10 @@ export class RecordsService {
           insertedDocuments.identifiers.map((identifier) => identifier.id),
         )
         .catch((error) =>
-          console.error('Failed to queue document embedding:', error),
+          this.logger.error(
+            `Failed to queue document embedding for record ${recordsId}`,
+            error instanceof Error ? error.stack : undefined,
+          ),
         );
       return {
         id: recordsId,
@@ -426,7 +432,7 @@ export class RecordsService {
         lastCompletedStep: record.lastCompletedStep,
       };
     } catch (err) {
-      console.log('Rolling Back ', err);
+      this.logRollback(6, err);
       await queryRunner.rollbackTransaction();
       throw err;
     } finally {
@@ -512,8 +518,7 @@ export class RecordsService {
 
       return { data, total };
     } catch (err) {
-      console.error('Error finding records:', err);
-      throw new InternalServerErrorException('Error finding records');
+      throw new InternalServerErrorException('Error finding records', { cause: err });
     }
   }
 
@@ -556,8 +561,7 @@ export class RecordsService {
       if (err instanceof HttpException) {
         throw err;
       }
-      console.error('Error finding record by email:', err);
-      throw new InternalServerErrorException('Error finding record by email');
+      throw new InternalServerErrorException('Error finding record by email', { cause: err });
     }
   }
 
@@ -583,8 +587,7 @@ export class RecordsService {
       if (err instanceof HttpException) {
         throw err;
       }
-      console.error('Error removing record:', err);
-      throw new InternalServerErrorException('Error removing record');
+      throw new InternalServerErrorException('Error removing record', { cause: err });
     }
   }
 
@@ -694,6 +697,12 @@ export class RecordsService {
       throw new NotFoundException('Document file not found');
     }
     return this.storageService.get(document.file);
+  }
+
+  private logRollback(step: number, error: unknown): void {
+    this.logger.warn(
+      `Rolling back step ${step}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   private determineStepSubmissionAction(

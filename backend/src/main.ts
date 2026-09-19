@@ -1,13 +1,23 @@
 import { HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
-import { ValidationPipe } from '@nestjs/common';
+import { ConsoleLogger, ValidationPipe } from '@nestjs/common';
 import { useContainer } from 'class-validator';
 import { SharedModule } from './shared/shared.module';
 import { AllHttpExceptionFilter } from './shared/filter/http-exception.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // Production logs are one JSON object per line, without debug output, so a
+  // log collector can parse them. Development keeps Nest's default logger.
+  const app = await NestFactory.create(AppModule, {
+    logger:
+      process.env.NODE_ENV === 'production'
+        ? new ConsoleLogger({
+            json: true,
+            logLevels: ['log', 'warn', 'error', 'fatal'],
+          })
+        : undefined,
+  });
   const configService = app.get(ConfigService);
   const appConfig = configService.get<{
     port: number;

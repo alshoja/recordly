@@ -85,8 +85,9 @@ export class RecordQueryService {
         total,
       };
     } catch (error) {
-      console.error('Error searching accessible records:', error);
-      throw new InternalServerErrorException('Error searching records');
+      throw new InternalServerErrorException('Error searching records', {
+        cause: error,
+      });
     }
   }
 

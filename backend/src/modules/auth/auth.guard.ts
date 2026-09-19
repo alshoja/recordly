@@ -35,26 +35,30 @@ export class AuthGuard implements CanActivate {
     if (!token) {
       throw new UnauthorizedException();
     }
+    const secret = this.configService.getOrThrow<string>(JWT_SECRET_ENV_KEY);
+
+    // Only an invalid or expired token is the caller's fault (401). A failure in
+    // the lookup below, such as the database being down, must surface as a 500.
+    let payload: AuthenticatedRequest['user'];
     try {
-      const payload = await this.jwtService.verifyAsync<
-        AuthenticatedRequest['user']
-      >(token, {
-        secret: this.configService.getOrThrow<string>(JWT_SECRET_ENV_KEY),
-      });
-
-      const user = await this.usersService.findOne(payload.sub);
-      if (!user?.isActive) {
-        throw new UnauthorizedException();
-      }
-
-      request.user = {
-        ...payload,
-        email: user.username,
-        role: user.role,
-      };
+      payload = await this.jwtService.verifyAsync<AuthenticatedRequest['user']>(
+        token,
+        { secret },
+      );
     } catch {
       throw new UnauthorizedException();
     }
+
+    const user = await this.usersService.findOne(payload.sub);
+    if (!user?.isActive) {
+      throw new UnauthorizedException();
+    }
+
+    request.user = {
+      ...payload,
+      email: user.username,
+      role: user.role,
+    };
     return true;
   }
 
