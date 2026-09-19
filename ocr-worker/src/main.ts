@@ -18,17 +18,18 @@ function createWorkerLogger(): ConsoleLogger | undefined {
 }
 
 async function bootstrap() {
+  // The process is in an unknown state after an unhandled rejection or an
+  // uncaught exception: log it, then exit so Docker restarts the worker.
   process.on('unhandledRejection', (reason) => {
     logger.error(
       `Unhandled promise rejection: ${reason instanceof Error ? reason.message : String(reason)}`,
       reason instanceof Error ? reason.stack : undefined,
     );
+    process.exit(1);
   });
 
-  // The process is in an unknown state after an uncaught exception: log it,
-  // then exit so Docker restarts the worker.
   process.on('uncaughtException', (error) => {
-    logger.fatal(`Uncaught exception: ${error.message}`, error.stack);
+    logger.error(`Uncaught exception: ${error.message}`, error.stack);
     process.exit(1);
   });
 
@@ -39,7 +40,7 @@ async function bootstrap() {
 }
 
 bootstrap().catch((error: unknown) => {
-  logger.fatal(
+  logger.error(
     `OCR worker failed to start: ${error instanceof Error ? error.message : String(error)}`,
     error instanceof Error ? error.stack : undefined,
   );

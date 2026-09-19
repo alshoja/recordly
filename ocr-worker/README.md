@@ -33,6 +33,10 @@ restricted `S3_OCR_ACCESS_KEY` and `S3_OCR_SECRET_KEY` credentials.
   image fails with `OCR timed out`, its Tesseract worker is terminated, and the
   next job runs.
 
+- **Fatal errors exit the process.** An uncaught exception, an unhandled
+  rejection or a failed startup is logged and the worker exits with code 1, so
+  the Docker restart policy brings it back.
+
 ## Common Tasks
 
 ```sh
