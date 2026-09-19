@@ -39,10 +39,11 @@ export class OpenAiService implements LlmClient {
 
       const response = await this.client.chat.completions.create(completionRequest);
       return response.choices[0]?.message?.content?.trim() ?? '';
-    } catch {
+    } catch (error) {
       throw new ServiceUnavailableException(
         request.unavailableMessage ??
           'Recordly AI Assistant cannot reach OpenAI right now.',
+        { cause: error },
       );
     }
   }
@@ -84,9 +85,10 @@ export class OpenAiService implements LlmClient {
       }
 
       return embedding;
-    } catch {
+    } catch (error) {
       throw new ServiceUnavailableException(
         'Recordly AI Assistant cannot generate document embeddings right now.',
+        { cause: error },
       );
     }
   }
