@@ -9,12 +9,10 @@ import {
   ParseFilePipe,
   Post,
   Query,
-  Res,
   UploadedFile,
   UseInterceptors,
   MaxFileSizeValidator,
 } from '@nestjs/common';
-import type { Response } from 'express';
 import { StepFiveDto } from './dto/step-five.dto';
 import { StepFourDto } from './dto/step-four.dto';
 import { StepOneDto } from './dto/step-one.dto';
@@ -27,7 +25,7 @@ import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
 import { FindRecordsQueryDto } from './dto/find-records-query.dto';
 import { UploadInterceptor } from '../../shared/interceptors/file-upload.interceptor';
-import { StoredObjectStream } from '../../shared/interfaces/stored-object.interface';
+import { toStreamableFile } from '../../shared/utilities/stored-object-file.utility';
 import { MimeTypeFileValidator } from '../../shared/validators/mime-type-file.validator';
 
 @Controller('records')
@@ -107,22 +105,17 @@ export class RecordsController {
   }
 
   @Get(':id/profile-image')
-  async getProfileImage(
-    @Param('id', ParseIntPipe) id: number,
-    @Res() response: Response,
-  ) {
-    return this.streamObject(await this.recordsService.getProfileImage(id), response);
+  async getProfileImage(@Param('id', ParseIntPipe) id: number) {
+    return toStreamableFile(await this.recordsService.getProfileImage(id));
   }
 
   @Get(':id/document-uploads/:uploadId')
   async getDocumentUpload(
     @Param('id', ParseIntPipe) id: number,
     @Param('uploadId') uploadId: string,
-    @Res() response: Response,
   ) {
-    return this.streamObject(
+    return toStreamableFile(
       await this.recordsService.getDocumentUpload(id, uploadId),
-      response,
     );
   }
 
@@ -130,12 +123,10 @@ export class RecordsController {
   async getDocumentFile(
     @Param('id', ParseIntPipe) id: number,
     @Param('documentId', ParseIntPipe) documentId: number,
-    @Res() response: Response,
   ) {
-    return this.streamObject(
+    return toStreamableFile(
       await this.recordsService.getDocumentFile(id, documentId),
-      response,
-      true,
+      { download: true },
     );
   }
 
@@ -183,20 +174,5 @@ export class RecordsController {
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.recordsService.remove(id);
-  }
-
-  private streamObject(
-    object: StoredObjectStream,
-    response: Response,
-    download = false,
-  ) {
-    if (object.contentType) response.type(object.contentType);
-    if (object.contentLength !== undefined) {
-      response.setHeader('Content-Length', String(object.contentLength));
-    }
-    if (download && object.originalName) {
-      response.attachment(object.originalName);
-    }
-    object.body.pipe(response);
   }
 }

@@ -7,11 +7,9 @@ import {
   ParseFilePipe,
   Post,
   Req,
-  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
-import type { Response } from 'express';
 
 import { AppService } from './app.service';
 import { UploadInterceptor } from './shared/interceptors/file-upload.interceptor';
@@ -20,6 +18,7 @@ import { MimeTypeFileValidator } from './shared/validators/mime-type-file.valida
 import { StorageService } from './shared/services/storage.service';
 import { TRANSIENT_BUCKET } from './shared/constants/storage.constants';
 import { AuthenticatedRequest } from './modules/auth/types/express';
+import { toStreamableFile } from './shared/utilities/stored-object-file.utility';
 
 @Controller()
 export class AppController {
@@ -65,21 +64,11 @@ export class AppController {
   async getProfileStaging(
     @Req() request: AuthenticatedRequest,
     @Param('uploadId') uploadId: string,
-    @Res() response: Response,
   ) {
     const reference = this.storageService.toReference(
       TRANSIENT_BUCKET,
       `profile-staging/users/${request.user.sub}/${uploadId}`,
     );
-    return this.streamStoredObject(reference, response);
-  }
-
-  private async streamStoredObject(reference: string, response: Response) {
-    const object = await this.storageService.get(reference);
-    if (object.contentType) response.type(object.contentType);
-    if (object.contentLength !== undefined) {
-      response.setHeader('Content-Length', String(object.contentLength));
-    }
-    object.body.pipe(response);
+    return toStreamableFile(await this.storageService.get(reference));
   }
 }
