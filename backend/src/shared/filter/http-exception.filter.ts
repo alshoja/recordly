@@ -18,6 +18,7 @@ export class AllHttpExceptionFilter implements ExceptionFilter {
     const { httpAdapter } = this.httpAdapterHost;
 
     const ctx = host.switchToHttp();
+    const request = ctx.getRequest();
 
     const httpStatus =
       exception instanceof HttpException
@@ -28,17 +29,45 @@ export class AllHttpExceptionFilter implements ExceptionFilter {
       statusCode: httpStatus,
       message: this.getErrorMessage(exception),
       timestamp: new Date().toISOString(),
-      path: httpAdapter.getRequestUrl(ctx.getRequest()),
+      path: httpAdapter.getRequestUrl(request),
     };
 
-    if (!(exception instanceof HttpException)) {
-      this.logger.error(
-        exception instanceof Error ? exception.message : String(exception),
-        exception instanceof Error ? exception.stack : undefined,
+    if (httpStatus >= HttpStatus.INTERNAL_SERVER_ERROR) {
+      this.logServerError(
+        exception,
+        httpStatus,
+        httpAdapter.getRequestMethod(request),
+        httpAdapter.getRequestUrl(request),
       );
     }
 
     httpAdapter.reply(ctx.getResponse(), responseBody, httpStatus);
+  }
+
+  /**
+   * Logs every 5xx, including HttpExceptions such as a 503 from a failing
+   * dependency. When a service wrapped the original error as the exception's
+   * `cause`, the stack logged is the cause's, so the real reason is visible.
+   */
+  private logServerError(
+    exception: unknown,
+    status: number,
+    method: string,
+    url: string,
+  ): void {
+    const origin =
+      exception instanceof HttpException && exception.cause
+        ? exception.cause
+        : exception;
+    // The query string is dropped: it can hold user input such as search terms.
+    const path = url.split('?')[0];
+
+    this.logger.error(
+      `${method} ${path} -> ${status}: ${
+        exception instanceof Error ? exception.message : String(exception)
+      }`,
+      origin instanceof Error ? origin.stack : undefined,
+    );
   }
 
   private getErrorMessage(exception: unknown): string | string[] {
