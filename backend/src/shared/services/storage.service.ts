@@ -6,8 +6,15 @@ import {
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
+  S3ServiceException,
 } from '@aws-sdk/client-s3';
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
@@ -169,8 +176,16 @@ export class StorageService implements OnModuleInit, OnModuleDestroy {
         new HeadObjectCommand({ Bucket: object.bucket, Key: object.key }),
       );
       return { size: response.ContentLength };
-    } catch {
-      return null;
+    } catch (error) {
+      // Only "does not exist" means null. Anything else (storage unreachable,
+      // bad credentials) must not be reported to callers as a missing file.
+      if (error instanceof S3ServiceException && error.$metadata.httpStatusCode === 404) {
+        return null;
+      }
+      throw new ServiceUnavailableException(
+        'File storage is temporarily unavailable.',
+        { cause: error },
+      );
     }
   }
 
@@ -201,7 +216,10 @@ export class StorageService implements OnModuleInit, OnModuleDestroy {
         new DeleteObjectCommand({ Bucket: object.bucket, Key: object.key }),
       );
     } catch (error) {
-      this.logger.error(`Failed to delete storage object ${object.bucket}/${object.key}`);
+      this.logger.error(
+        `Failed to delete storage object ${object.bucket}/${object.key}`,
+        error instanceof Error ? error.stack : undefined,
+      );
       await this.redisService
         .getClient()
         .lpush(STORAGE_DELETION_RETRY_KEY, reference)
